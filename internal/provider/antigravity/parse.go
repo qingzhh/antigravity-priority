@@ -231,15 +231,6 @@ func isMoreConservative(candidate candidateWindow, current candidateWindow) bool
 	return candidate.resetAt != nil && (current.resetAt == nil || candidate.resetAt.After(*current.resetAt))
 }
 
-func firstWindow(windows []candidateWindow, windowType WindowType) (candidateWindow, bool) {
-	for _, window := range windows {
-		if window.window == windowType {
-			return window, true
-		}
-	}
-	return candidateWindow{}, false
-}
-
 func quotaFieldsToWindow(rawRemaining any, rawReset any, windowType WindowType) (candidateWindow, bool) {
 	resetAt, ok := parseAnyTime(rawReset)
 	if !ok {
@@ -371,10 +362,10 @@ func isHourUnitAt(text string, offset int) bool {
 }
 
 func inferPlanType(windows []candidateWindow) core.PlanType {
-	if _, ok := firstWindow(windows, WindowFiveHour); ok {
+	if _, ok := conservativeWindow(windows, WindowFiveHour); ok {
 		return core.PlanTypePro
 	}
-	if _, ok := firstWindow(windows, WindowWeekly); ok {
+	if _, ok := conservativeWindow(windows, WindowWeekly); ok {
 		return core.PlanTypeFree
 	}
 	return core.PlanTypeUnknown

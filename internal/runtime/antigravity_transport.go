@@ -133,7 +133,7 @@ func antigravityQuotaHeaders(accessToken string) host.Header {
 		"Accept":        []string{"application/json"},
 		"Authorization": []string{"Bearer " + token},
 		"Content-Type":  []string{"application/json"},
-		"User-Agent":    []string{"antigravity/cli/1.0.8 darwin/arm64"},
+		"User-Agent":    []string{"antigravity/hub/2.9.1 darwin/arm64"},
 	}
 }
 
