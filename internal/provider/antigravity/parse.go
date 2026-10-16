@@ -104,11 +104,11 @@ func parseGroupFromResponse(response availableModelsResponse, observedAt time.Ti
 		PlanType:   inferPlanType(windows),
 	}
 
-	if fiveHour, ok := firstWindow(windows, WindowFiveHour); ok {
+	if fiveHour, ok := conservativeWindow(windows, WindowFiveHour); ok {
 		result.ShortWindowResetAt = fiveHour.resetAt
 		result.ShortWindowRemaining = int64Ptr(fiveHour.remaining)
 	}
-	if weekly, ok := firstWindow(windows, WindowWeekly); ok {
+	if weekly, ok := conservativeWindow(windows, WindowWeekly); ok {
 		result.LongWindowResetAt = weekly.resetAt
 		result.LongWindowRemaining = int64Ptr(weekly.remaining)
 	}
@@ -177,8 +177,8 @@ func quotaGroupBelongsToModelGroup(quotaGroup quotaGroup, group ModelGroup) bool
 }
 
 func pickEffectiveWindow(windows []candidateWindow) (candidateWindow, bool) {
-	fiveHour, hasFiveHour := firstWindow(windows, WindowFiveHour)
-	weekly, hasWeekly := firstWindow(windows, WindowWeekly)
+	fiveHour, hasFiveHour := conservativeWindow(windows, WindowFiveHour)
+	weekly, hasWeekly := conservativeWindow(windows, WindowWeekly)
 	if hasFiveHour && hasWeekly {
 		if weekly.remaining <= 0 {
 			return weekly, true
@@ -194,10 +194,41 @@ func pickEffectiveWindow(windows []candidateWindow) (candidateWindow, bool) {
 	if hasFiveHour {
 		return fiveHour, true
 	}
+	return conservativeAnyWindow(windows)
+}
+
+func conservativeWindow(windows []candidateWindow, windowType WindowType) (candidateWindow, bool) {
+	var selected candidateWindow
+	found := false
 	for _, window := range windows {
-		return window, true
+		if window.window != windowType {
+			continue
+		}
+		if !found || isMoreConservative(window, selected) {
+			selected = window
+			found = true
+		}
 	}
-	return candidateWindow{}, false
+	return selected, found
+}
+
+func conservativeAnyWindow(windows []candidateWindow) (candidateWindow, bool) {
+	var selected candidateWindow
+	found := false
+	for _, window := range windows {
+		if !found || isMoreConservative(window, selected) {
+			selected = window
+			found = true
+		}
+	}
+	return selected, found
+}
+
+func isMoreConservative(candidate candidateWindow, current candidateWindow) bool {
+	if candidate.remaining != current.remaining {
+		return candidate.remaining < current.remaining
+	}
+	return candidate.resetAt != nil && (current.resetAt == nil || candidate.resetAt.After(*current.resetAt))
 }
 
 func firstWindow(windows []candidateWindow, windowType WindowType) (candidateWindow, bool) {

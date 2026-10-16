@@ -514,3 +514,55 @@ func TestRemainingPercent(t *testing.T) {
 		}
 	}
 }
+
+func TestParseAvailableModels_PerModelWithoutExplicitWindows(t *testing.T) {
+	raw := []byte(`{
+		"models": {
+			"gemini-2.5-flash-lite": {
+				"modelProvider": "google",
+				"quotaInfo": {
+					"remainingFraction": 0.99,
+					"resetTime": "2026-08-17T16:00:00Z"
+				}
+			},
+			"gemini-2.5-pro": {
+				"modelProvider": "google",
+				"quotaInfo": {
+					"remainingFraction": 0.88,
+					"resetTime": "2026-08-17T14:30:00Z"
+				}
+			},
+			"gemini-2.5-pro-exp": {
+				"modelProvider": "google",
+				"quotaInfo": {
+					"remainingFraction": 0.88,
+					"resetTime": "2026-08-17T15:30:00Z"
+				}
+			},
+			"gemini-2.5-flash": {
+				"modelProvider": "google",
+				"quotaInfo": {
+					"remainingFraction": 0.95,
+					"resetTime": "2026-08-17T15:00:00Z"
+				}
+			}
+		}
+	}`)
+
+	now := time.Date(2026, 8, 17, 10, 0, 0, 0, time.UTC)
+	for i := range 50 {
+		res := ParseAvailableModels(raw, now, ModelGroupGemini)
+		if res.Status != StatusReady {
+			t.Fatalf("iteration %d: expected StatusReady, got %v (err: %v)", i, res.Status, res.Error)
+		}
+		if res.Window != WindowUnknown {
+			t.Fatalf("iteration %d: expected WindowUnknown, got %v", i, res.Window)
+		}
+		if res.Remaining == nil || *res.Remaining != 88 {
+			t.Fatalf("iteration %d: expected conservative remaining 88, got %v", i, res.Remaining)
+		}
+		if res.ResetAt == nil || res.ResetAt.Format(time.RFC3339) != "2026-08-17T15:30:00Z" {
+			t.Fatalf("iteration %d: expected later tie-break ResetAt 2026-08-17T15:30:00Z, got %v", i, res.ResetAt)
+		}
+	}
+}

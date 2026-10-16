@@ -18,6 +18,12 @@ var antigravityQuotaURLs = []string{
 	"https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
 }
 
+var antigravityAvailableModelsURLs = []string{
+	antigravity.FetchAvailableModelsURL,
+	"https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:fetchAvailableModels",
+	"https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels",
+}
+
 type antigravityQuotaRequest struct {
 	AuthIndex   string
 	AccessToken string
@@ -32,6 +38,8 @@ type quotaHTTPDoer interface {
 func executeAntigravityQuotaRequest(ctx context.Context, doer quotaHTTPDoer, request antigravityQuotaRequest) map[antigravity.ModelGroup]antigravity.ProbeResult {
 	var lastStatus int
 	var lastErr error
+	var results map[antigravity.ModelGroup]antigravity.ProbeResult
+
 	for _, url := range antigravityQuotaURLs {
 		response, err := doer.HTTPDoRaw(ctx, host.HTTPRequest{
 			AuthIndex: request.AuthIndex,
@@ -48,12 +56,54 @@ func executeAntigravityQuotaRequest(ctx context.Context, doer quotaHTTPDoer, req
 		if response.StatusCode != http.StatusOK {
 			continue
 		}
-		results := antigravity.ParseAllModelGroups(response.Body, request.ObservedAt.UTC())
+		results = antigravity.ParseAllModelGroups(response.Body, request.ObservedAt.UTC())
 		for group, result := range results {
 			result.AuthIndex = request.AuthIndex
 			result.HTTPStatusCode = response.StatusCode
 			results[group] = result
 		}
+		break
+	}
+
+	// Google moved Gemini quotas exclusively to fetchAvailableModels, leaving retrieveUserQuotaSummary
+	// with only Claude/GPT models. Query available models if summary failed or Gemini quota is missing.
+	needsFallback := results == nil || results[antigravity.ModelGroupGemini].Status != antigravity.StatusReady
+
+	if needsFallback {
+		for _, url := range antigravityAvailableModelsURLs {
+			response, err := doer.HTTPDoRaw(ctx, host.HTTPRequest{
+				AuthIndex: request.AuthIndex,
+				Method:    http.MethodPost,
+				URL:       url,
+				Headers:   antigravityQuotaHeaders(request.AccessToken),
+				Body:      antigravityQuotaBody(request.ProjectID),
+			})
+			if err != nil {
+				if lastErr == nil {
+					lastErr = err
+				}
+				continue
+			}
+			lastStatus = response.StatusCode
+			if response.StatusCode != http.StatusOK {
+				continue
+			}
+			fallbackResults := antigravity.ParseAllModelGroups(response.Body, request.ObservedAt.UTC())
+			if results == nil {
+				results = make(map[antigravity.ModelGroup]antigravity.ProbeResult, 2)
+			}
+			for group, fResult := range fallbackResults {
+				fResult.AuthIndex = request.AuthIndex
+				fResult.HTTPStatusCode = response.StatusCode
+				if existing, exists := results[group]; !exists || existing.Status != antigravity.StatusReady {
+					results[group] = fResult
+				}
+			}
+			break
+		}
+	}
+
+	if results != nil {
 		return results
 	}
 	message := fmt.Sprintf("retrieve quota summary status %d", lastStatus)
