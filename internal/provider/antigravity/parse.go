@@ -194,10 +194,7 @@ func pickEffectiveWindow(windows []candidateWindow) (candidateWindow, bool) {
 	if hasFiveHour {
 		return fiveHour, true
 	}
-	for _, window := range windows {
-		return window, true
-	}
-	return candidateWindow{}, false
+	return conservativeAnyWindow(windows)
 }
 
 func conservativeWindow(windows []candidateWindow, windowType WindowType) (candidateWindow, bool) {
@@ -207,17 +204,33 @@ func conservativeWindow(windows []candidateWindow, windowType WindowType) (candi
 		if window.window != windowType {
 			continue
 		}
-		if !found || window.remaining < selected.remaining {
+		if !found || isMoreConservative(window, selected) {
 			selected = window
 			found = true
-		} else if window.remaining == selected.remaining {
-			if window.resetAt != nil && (selected.resetAt == nil || window.resetAt.After(*selected.resetAt)) {
-				selected = window
-			}
 		}
 	}
 	return selected, found
 }
+
+func conservativeAnyWindow(windows []candidateWindow) (candidateWindow, bool) {
+	var selected candidateWindow
+	found := false
+	for _, window := range windows {
+		if !found || isMoreConservative(window, selected) {
+			selected = window
+			found = true
+		}
+	}
+	return selected, found
+}
+
+func isMoreConservative(candidate candidateWindow, current candidateWindow) bool {
+	if candidate.remaining != current.remaining {
+		return candidate.remaining < current.remaining
+	}
+	return candidate.resetAt != nil && (current.resetAt == nil || candidate.resetAt.After(*current.resetAt))
+}
+
 func firstWindow(windows []candidateWindow, windowType WindowType) (candidateWindow, bool) {
 	for _, window := range windows {
 		if window.window == windowType {
