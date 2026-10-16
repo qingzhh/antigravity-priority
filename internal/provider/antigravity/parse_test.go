@@ -514,3 +514,38 @@ func TestRemainingPercent(t *testing.T) {
 		}
 	}
 }
+func TestParseAvailableModels_PerModelWithoutExplicitWindows(t *testing.T) {
+	raw := []byte(`{
+		"models": {
+			"gemini-2.5-pro": {
+				"modelProvider": "google",
+				"quotaInfo": {
+					"remainingFraction": 0.88,
+					"resetTime": "2026-08-17T14:30:00Z"
+				}
+			},
+			"gemini-2.5-flash": {
+				"modelProvider": "google",
+				"quotaInfo": {
+					"remainingFraction": 0.95,
+					"resetTime": "2026-08-17T15:00:00Z"
+				}
+			}
+		}
+	}`)
+
+	now := time.Date(2026, 8, 17, 10, 0, 0, 0, time.UTC)
+	res := ParseAvailableModels(raw, now, ModelGroupGemini)
+	if res.Status != StatusReady {
+		t.Fatalf("expected StatusReady, got %v (err: %v)", res.Status, res.Error)
+	}
+	if res.Window != WindowUnknown {
+		t.Errorf("expected WindowUnknown, got %v", res.Window)
+	}
+	if res.Remaining == nil || *res.Remaining != 88 {
+		t.Errorf("expected conservative remaining 88, got %v", res.Remaining)
+	}
+	if res.ResetAt == nil || res.ResetAt.Format(time.RFC3339) != "2026-08-17T14:30:00Z" {
+		t.Errorf("expected ResetAt 2026-08-17T14:30:00Z, got %v", res.ResetAt)
+	}
+}

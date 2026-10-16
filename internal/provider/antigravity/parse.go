@@ -104,11 +104,11 @@ func parseGroupFromResponse(response availableModelsResponse, observedAt time.Ti
 		PlanType:   inferPlanType(windows),
 	}
 
-	if fiveHour, ok := firstWindow(windows, WindowFiveHour); ok {
+	if fiveHour, ok := conservativeWindow(windows, WindowFiveHour); ok {
 		result.ShortWindowResetAt = fiveHour.resetAt
 		result.ShortWindowRemaining = int64Ptr(fiveHour.remaining)
 	}
-	if weekly, ok := firstWindow(windows, WindowWeekly); ok {
+	if weekly, ok := conservativeWindow(windows, WindowWeekly); ok {
 		result.LongWindowResetAt = weekly.resetAt
 		result.LongWindowRemaining = int64Ptr(weekly.remaining)
 	}
@@ -177,8 +177,8 @@ func quotaGroupBelongsToModelGroup(quotaGroup quotaGroup, group ModelGroup) bool
 }
 
 func pickEffectiveWindow(windows []candidateWindow) (candidateWindow, bool) {
-	fiveHour, hasFiveHour := firstWindow(windows, WindowFiveHour)
-	weekly, hasWeekly := firstWindow(windows, WindowWeekly)
+	fiveHour, hasFiveHour := conservativeWindow(windows, WindowFiveHour)
+	weekly, hasWeekly := conservativeWindow(windows, WindowWeekly)
 	if hasFiveHour && hasWeekly {
 		if weekly.remaining <= 0 {
 			return weekly, true
@@ -200,6 +200,24 @@ func pickEffectiveWindow(windows []candidateWindow) (candidateWindow, bool) {
 	return candidateWindow{}, false
 }
 
+func conservativeWindow(windows []candidateWindow, windowType WindowType) (candidateWindow, bool) {
+	var selected candidateWindow
+	found := false
+	for _, window := range windows {
+		if window.window != windowType {
+			continue
+		}
+		if !found || window.remaining < selected.remaining {
+			selected = window
+			found = true
+		} else if window.remaining == selected.remaining {
+			if window.resetAt != nil && (selected.resetAt == nil || window.resetAt.After(*selected.resetAt)) {
+				selected = window
+			}
+		}
+	}
+	return selected, found
+}
 func firstWindow(windows []candidateWindow, windowType WindowType) (candidateWindow, bool) {
 	for _, window := range windows {
 		if window.window == windowType {

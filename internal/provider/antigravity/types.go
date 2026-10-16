@@ -17,8 +17,11 @@ const (
 	ModelGroupClaudeGPT = config.AntigravityModelGroupClaudeGPT
 )
 
-// RetrieveUserQuotaSummaryURL is the primary Antigravity quota endpoint.
+// RetrieveUserQuotaSummaryURL is the primary Antigravity quota summary endpoint.
 const RetrieveUserQuotaSummaryURL = "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary"
+
+// FetchAvailableModelsURL is the fallback Antigravity available models endpoint providing per-model quotas.
+const FetchAvailableModelsURL = "https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels"
 
 // WindowType indicates the quota window type classified from upstream responses.
 type WindowType string
