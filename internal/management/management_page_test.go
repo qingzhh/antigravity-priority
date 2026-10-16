@@ -762,6 +762,20 @@ async function fetchDiagnostics() {}
                         r7d: 0.9,
                         urgency: 1.1,
                         cycle_burn_rate: 0.15
+                    },
+                    {
+                        auth_index: "healthy-cached",
+                        email: "cached@example.com",
+                        reason: "historical: fresh remaining positive",
+                        evidence_fresh: false,
+                        short_window_reset_at: "2026-10-16T08:00:00Z",
+                        long_window_reset_at: "2026-10-23T08:00:00Z",
+                        current: { priority: 98, disabled: false },
+                        target: { priority: 98, disabled: false },
+                        r5h: 0.95,
+                        r7d: 0.99,
+                        urgency: 1.02,
+                        cycle_burn_rate: 0.15
                     }
                 ]
             }
@@ -771,8 +785,8 @@ async function fetchDiagnostics() {}
     renderDashboard();
 
     const renderedCards = elements.credentialsContainer.children;
-    if (renderedCards.length !== 2) {
-        throw new Error("expected 2 rendered cards, got " + renderedCards.length);
+    if (renderedCards.length !== 3) {
+        throw new Error("expected 3 rendered cards, got " + renderedCards.length);
     }
 
     // Card 0: 403 failure
@@ -787,7 +801,7 @@ async function fetchDiagnostics() {}
         throw new Error("card 0 should show specific probe failure detail: " + card0HTML);
     }
     if (card0HTML.indexOf("meter-container-stale") < 0 || card0HTML.indexOf("历史数据") < 0) {
-        throw new Error("card 0 should show stale tag and class for non-fresh evidence: " + card0HTML);
+        throw new Error("card 0 should show stale tag and class for failed probe: " + card0HTML);
     }
 
     // Card 1: 429 cooldown
@@ -799,6 +813,11 @@ async function fetchDiagnostics() {}
         throw new Error("card 1 reason line should display failure cause: " + card1HTML);
     }
 
+    // Card 2: cached credential with valid latest probe observation (when another credential was probed)
+    const card2HTML = renderedCards[2].innerHTML;
+    if (card2HTML.indexOf("meter-container-stale") >= 0 || card2HTML.indexOf("历史数据") >= 0) {
+        throw new Error("card 2 with valid latest probe observation must NOT show stale '历史数据' tag: " + card2HTML);
+    }
     // 3. Test triggerProbe with batch failure
     elements.btnProbe.querySelector = function() { return element(); };
     elements.btnProbe.classList = { contains: function() { return false; }, add: function() {}, remove: function() {} };

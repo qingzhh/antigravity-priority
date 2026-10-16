@@ -153,7 +153,8 @@ const templateScriptOverviewRender = `        function renderDashboard() {
                         "</div>" +
                     "</div>";
 
-                const isStale = (item.evidence_fresh === false);
+                const hasQuotaObservation = Boolean(item.short_window_reset_at || item.long_window_reset_at || item.reset_at);
+                const isStale = Boolean(probeFailed || (!item.evidence_fresh && !hasQuotaObservation));
                 const staleTag = isStale ? " <span class=\"meter-stale-tag\">" + t("staleEvidence") + "</span>" : "";
                 const meterContainerClass = "meter-container" + (isStale ? " meter-container-stale" : "");
 
